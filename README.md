@@ -1,6 +1,6 @@
 NANOPEN MANIPULATOR
 
-Run "npm.py"
+Run "npm_v4.ipynb"
 
 Requirements:
 numpy==2.0.1
