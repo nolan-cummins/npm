@@ -2,7 +2,7 @@ NANOPEN MANIPULATOR
 
 Run "npm_v4.ipynb"
 
-Requirements:
+**Requirements**:
 numpy==2.0.1
 pyqtgraph==0.13.7
 PySide6==6.7.2
