@@ -1,4 +1,5 @@
-NANOPEN MANIPULATOR
+# nanopen-manipulator
+Tool to precisely manipulate nanopen
 
 Run "npm_v4.ipynb"
 
