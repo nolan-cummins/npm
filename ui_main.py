@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mainIAiVbq.ui'
+## Form generated from reading UI file 'mainTtoprf.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.7.2
 ##
@@ -28,9 +28,9 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(810, 582)
-        MainWindow.setMinimumSize(QSize(810, 582))
-        MainWindow.setMaximumSize(QSize(810, 582))
+        MainWindow.resize(810, 603)
+        MainWindow.setMinimumSize(QSize(810, 603))
+        MainWindow.setMaximumSize(QSize(810, 603))
         self.save = QAction(MainWindow)
         self.save.setObjectName(u"save")
         self.save.setEnabled(True)
@@ -38,7 +38,7 @@ class Ui_MainWindow(object):
         if QIcon.hasThemeIcon(QIcon.ThemeIcon.DocumentSave):
             icon = QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave)
         else:
-            icon.addFile(u"../../../../../.designer/save_icon.png", QSize(), QIcon.Mode.Normal, QIcon.State.On)
+            icon.addFile(u"../../../../.designer/save_icon.png", QSize(), QIcon.Mode.Normal, QIcon.State.On)
 
         self.save.setIcon(icon)
         self.save.setIconVisibleInMenu(True)
@@ -48,7 +48,7 @@ class Ui_MainWindow(object):
         if QIcon.hasThemeIcon(QIcon.ThemeIcon.DocumentOpen):
             icon1 = QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen)
         else:
-            icon1.addFile(u"../../../../../.designer/load_icon.png", QSize(), QIcon.Mode.Normal, QIcon.State.On)
+            icon1.addFile(u"../../../../.designer/load_icon.png", QSize(), QIcon.Mode.Normal, QIcon.State.On)
 
         self.load.setIcon(icon1)
         self.load.setIconVisibleInMenu(True)
@@ -177,6 +177,13 @@ class Ui_MainWindow(object):
         self.step_mode.setAutoExclusive(False)
 
         self.verticalLayout_2.addWidget(self.step_mode)
+
+        self.free_mode = QPushButton(self.verticalLayoutWidget_2)
+        self.free_mode.setObjectName(u"free_mode")
+        self.free_mode.setCheckable(True)
+        self.free_mode.setAutoExclusive(False)
+
+        self.verticalLayout_2.addWidget(self.free_mode)
 
         self.set_zero = QPushButton(self.verticalLayoutWidget_2)
         self.set_zero.setObjectName(u"set_zero")
@@ -329,12 +336,39 @@ class Ui_MainWindow(object):
         self.label_11 = QLabel(self.centralwidget)
         self.label_11.setObjectName(u"label_11")
         self.label_11.setGeometry(QRect(570, 60, 81, 22))
+        self.connection = QLabel(self.centralwidget)
+        self.connection.setObjectName(u"connection")
+        self.connection.setGeometry(QRect(20, 489, 761, 61))
+        self.print = QLabel(self.centralwidget)
+        self.print.setObjectName(u"print")
+        self.print.setGeometry(QRect(20, 510, 761, 61))
+        self.stop = QPushButton(self.centralwidget)
+        self.stop.setObjectName(u"stop")
+        self.stop.setGeometry(QRect(30, 10, 81, 31))
+        self.stop.setAutoFillBackground(False)
+        icon2 = QIcon(QIcon.fromTheme(u"media-playback-stop"))
+        self.stop.setIcon(icon2)
         MainWindow.setCentralWidget(self.centralwidget)
+        self.connection.raise_()
+        self.horizontalLayoutWidget.raise_()
+        self.speed.raise_()
+        self.label.raise_()
+        self.verticalLayoutWidget_2.raise_()
+        self.main_plot.raise_()
+        self.z_axis.raise_()
+        self.horizontalLayoutWidget_3.raise_()
+        self.verticalLayoutWidget.raise_()
+        self.verticalLayoutWidget_3.raise_()
+        self.label_11.raise_()
+        self.print.raise_()
+        self.stop.raise_()
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
         self.menubar.setGeometry(QRect(0, 0, 810, 33))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
+        self.menuSerial = QMenu(self.menubar)
+        self.menuSerial.setObjectName(u"menuSerial")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
@@ -347,6 +381,7 @@ class Ui_MainWindow(object):
         QWidget.setTabOrder(self.sp4, self.sp5)
 
         self.menubar.addAction(self.menuFile.menuAction())
+        self.menubar.addAction(self.menuSerial.menuAction())
         self.menuFile.addAction(self.save)
         self.menuFile.addAction(self.load)
 
@@ -371,6 +406,7 @@ class Ui_MainWindow(object):
         self.sp5.setText(QCoreApplication.translate("MainWindow", u"Save Point 5", None))
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\">Step Size</p></body></html>", None))
         self.step_mode.setText(QCoreApplication.translate("MainWindow", u"Step Mode", None))
+        self.free_mode.setText(QCoreApplication.translate("MainWindow", u"Free Mode", None))
         self.set_zero.setText(QCoreApplication.translate("MainWindow", u"Set Zero", None))
         self.origin.setText(QCoreApplication.translate("MainWindow", u"Origin", None))
         self.label_8.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"right\">%</p></body></html>", None))
@@ -389,6 +425,10 @@ class Ui_MainWindow(object):
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"Y (um)", None))
         self.label_10.setText(QCoreApplication.translate("MainWindow", u"Z (um)", None))
         self.label_11.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:12pt;\">Z</span></p></body></html>", None))
+        self.connection.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:8pt;\">Status: Disconnected</span></p></body></html>", None))
+        self.print.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:8pt;\">[]</span></p></body></html>", None))
+        self.stop.setText(QCoreApplication.translate("MainWindow", u"STOP", None))
         self.menuFile.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
+        self.menuSerial.setTitle(QCoreApplication.translate("MainWindow", u"Serial", None))
     # retranslateUi
 
