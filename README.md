@@ -10,3 +10,5 @@ PySide6==6.7.2
 PySide6_Addons==6.7.2
 PySide6_Essentials==6.7.2
 shiboken6==6.7.2
+
+![image](https://github.com/user-attachments/assets/f281adb6-06e2-46e3-8daa-8454236122c7)
