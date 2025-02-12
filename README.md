@@ -4,7 +4,10 @@ Tool to precisely manipulate nanopen
 Run "python3 main.py"
 
 **Requirements**:
-PySide6 pyqtgraph numpy pyserial
+- PySide6
+- pyqtgraph
+- numpy
+- pyserial
 
 # main
 ![image](https://github.com/user-attachments/assets/95c76dcd-bb0e-41ff-a975-b33b7c3dfd0e)
