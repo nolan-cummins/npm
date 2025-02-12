@@ -1,14 +1,13 @@
 # nanopen-manipulator
 Tool to precisely manipulate nanopen
 
-Run "npm_v4.ipynb"
+Run "python3 main.py"
 
 **Requirements**:
-numpy==2.0.1
-pyqtgraph==0.13.7
-PySide6==6.7.2
-PySide6_Addons==6.7.2
-PySide6_Essentials==6.7.2
-shiboken6==6.7.2
+pip install PySide6 pyqtgraph numpy pyserial
 
-![image](https://github.com/user-attachments/assets/f281adb6-06e2-46e3-8daa-8454236122c7)
+# main
+![image](https://github.com/user-attachments/assets/95c76dcd-bb0e-41ff-a975-b33b7c3dfd0e)
+
+# save points
+![image](https://github.com/user-attachments/assets/2acf6755-b5d7-4467-b786-c8631667c0f8)
