@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mainOYRLVS.ui'
+## Form generated from reading UI file 'mainHhZtrL.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.7.2
+## Created by: Qt User Interface Compiler version 6.8.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -121,7 +121,7 @@ class Ui_MainWindow(object):
         self.label.setGeometry(QRect(60, 60, 61, 21))
         self.verticalLayoutWidget_2 = QWidget(self.centralwidget)
         self.verticalLayoutWidget_2.setObjectName(u"verticalLayoutWidget_2")
-        self.verticalLayoutWidget_2.setGeometry(QRect(680, 110, 121, 441))
+        self.verticalLayoutWidget_2.setGeometry(QRect(680, 110, 133, 441))
         self.verticalLayout_2 = QVBoxLayout(self.verticalLayoutWidget_2)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
@@ -371,11 +371,11 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_5.addWidget(self.connection)
 
-        self.label_5 = QLabel(self.verticalLayoutWidget_4)
-        self.label_5.setObjectName(u"label_5")
-        self.label_5.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.print = QLabel(self.verticalLayoutWidget_4)
+        self.print.setObjectName(u"print")
+        self.print.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.verticalLayout_5.addWidget(self.label_5)
+        self.verticalLayout_5.addWidget(self.print)
 
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
@@ -454,7 +454,7 @@ class Ui_MainWindow(object):
         self.label_11.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:12pt;\">Z</span></p></body></html>", None))
         self.stop.setText(QCoreApplication.translate("MainWindow", u" STOP", None))
         self.connection.setText(QCoreApplication.translate("MainWindow", u"Status: Disconnected", None))
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"[]", None))
+        self.print.setText(QCoreApplication.translate("MainWindow", u"[]", None))
         self.menuFile.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.menuUnits.setTitle(QCoreApplication.translate("MainWindow", u"Units", None))
         self.menuSerial.setTitle(QCoreApplication.translate("MainWindow", u"Serial", None))
