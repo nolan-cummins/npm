@@ -2,12 +2,13 @@ import sys
 from PySide6 import QtWidgets
 from PySide6 import QtCore
 from PySide6 import QtGui
-from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton
+from PySide6.QtGui import *
+from PySide6.QtWidgets import *
+from PySide6.QtCore import *
 from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
-from PySide6.QtCore import QIODevice, QByteArray
-from PySide6.QtCore import QTime, QTimer, Slot
 import pyqtgraph as pg
 import numpy as np
+import pandas as pd
 from time import *
 import warnings
 
@@ -15,51 +16,23 @@ import ctypes
 myappid = 'nil.npm.pyqt.1' # arbitrary string
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
-from PySide6.QtGui import *
-from PySide6.QtWidgets import *
-from PySide6.QtCore import *
-
 from importlib import reload
 
 import ui_main
 reload(ui_main)
 from ui_main import *
 
-import ui_dialog
-reload(ui_dialog)
-from ui_dialog import *
-
 from serial import *
 import serial.tools.list_ports
 
-class Dialog(QDialog, Ui_Dialog):
-    def __init__(self, points, parent=None):
-        QDialog.__init__(self, parent)
-        self.points = points
-        self.setupUi(self)
-        self.setWindowTitle("Save Current Position")
-        self.setWindowIcon(QtGui.QIcon('save_icon.png'))
-        self.buttonBox.accepted.connect(self.on_save)
-        self.comboBox.activated.connect(self.on_activate)
-        self.comboBox.clear()
-        self.comboBox.addItems(self.points)
-        self.comboBox.setPlaceholderText('Select Save Point')
-        self.selection=self.comboBox.itemText(0)
-        self.index=0
-        self.save=False
-        comboBox=[]
-        for i in range(0,self.comboBox.count()):
-            comboBox.append(self.comboBox.itemText(i))
-        print(str(comboBox), end='\r') 
+import auto
+reload(auto)
+from auto import *
+from comms import *
 
-    def on_activate(self):
-        print(self.comboBox.currentText().ljust*(200), end='\r')
-        self.selection=self.comboBox.currentText()
-        self.index=self.comboBox.currentIndex()
-    
-    def on_save(self):
-        self.comboBox.setItemText(self.index, self.name_input.text())
-        self.save=True
+import save
+reload(save)
+from save import SaveDialog
         
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -67,8 +40,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.setupUi(self)
 
         self.setWindowIcon(QtGui.QIcon('nanopen_icon.png'))
-        self.setWindowTitle("Nanopen Manipulator")
+        QApplication.setWindowIcon(QIcon('nanopen_icon.png'))
+        self.setWindowTitle("NanoPen Manipulator")
 
+        self.autoDia = AutomationDialog()
+        self.autoDia.run_experiment.connect(self.runExperiment)
+        self.autoDia.show()
+        self.autoDia.timeRemainingPanel.display("00:00:00")
+        
         buttons = [
             (self.save_point, self.on_save_point), (self.set_zero, self.on_set_zero),
             (self.home, self.on_home), (self.step_mode, self.on_step_mode),
@@ -79,7 +58,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             btn.clicked.connect(handler)
             btn.setFocusPolicy(Qt.NoFocus)
         
-        actions = [(self.actionum, self.on_unit_um), (self.actionsteps, self.on_unit_step)]
+        actions = [(self.actionum, self.on_unit_um), (self.actionsteps, self.on_unit_step), (self.load, self.loadSettings),
+                  (self.save, self.saveSettings)]
         for action, handler in actions:
             action.triggered.connect(handler)
         
@@ -113,7 +93,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.z_axis.setLabel("left", "Z (um)")
         self.z_axis.setMouseEnabled(x=False, y=True)
         
-        self.x = self.y = self.z = 0
+        self.x = self.y = self.z = self.x_actual = self.y_actual = self.z_actual = 0
         self.step_x = self.step_y = self.step_z = 0
         self.plot_x = self.plot_y = self.plot_z = self.x
         self.plot_x_actual = self.plot_y_actual = self.plot_z_actual = self.x
@@ -138,19 +118,31 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.serial = QSerialPort(self)
         self.serial.readyRead.connect(self.read_serial_data)
         self.buffer, self.com_port, self.serial_port = b'', '', ''
-        self.ports = sorted(serial.tools.list_ports.comports())
-        
-        for port in self.ports:
-            com_port = QAction(port[0], self, checkable=True)
-            com_port.triggered.connect(self.on_serial)
-            self.menuSerial.addAction(com_port)
-            self.serial.setPortName(port[0])
-            self.serial.close()
+        self.ports=[]
+        self.findPorts()
+        self.menuSerial.aboutToShow.connect(self.findPorts)
         
         self.zero = [0, 0, 0]
         self.i, self.x_runs, self.y_runs, self.z_runs, self.num_runs = 0, 0, 0, 0, 10
         self.initial_xyz, self.lastData = [], [0, 0, 0]
         self.sync, self.is_free_mode = False, False
+
+    def findPorts(self):
+        self.ports = sorted(serial.tools.list_ports.comports())
+        actions = self.menuSerial.actions()
+        existing_ports=[]
+        for action in actions:
+            existing_ports.append(action.text())
+        
+        for port in self.ports:
+            if port.description in existing_ports:
+                continue
+            com_port = QAction(port.description, self, checkable=True)
+            com_port.setObjectName(port.device)
+            com_port.triggered.connect(self.on_serial)
+            self.menuSerial.addAction(com_port)
+            self.serial.setPortName(port[0])
+            self.serial.close()    
     
     def changeUnit(self, unit):
         self.unit = unit
@@ -249,19 +241,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             print("Error plotting feedback!")
             pass
 
-        print(f'step: {self.step}, (x, l): {(self.x, self.l)}, (y, w): {(self.y, self.w)}, (z, h): {(self.z, self.h)}'.ljust(200), end='\r')
+        #print(f'step: {self.step}, (x, l): {(self.x, self.l)}, (y, w): {(self.y, self.w)}, (z, h): {(self.z, self.h)}'.ljust(200), end='\r')
     
     def on_serial(self):
         for port in self.menuSerial.actions():
             try:
                 if port.isChecked():
-                    self.com_port = port.text()
+                    self.com_port = port.objectName()
                     self.serial.setPortName(self.com_port) 
-                    self.serial.setBaudRate(QSerialPort.Baud9600)
+                    self.serial.setBaudRate(QSerialPort.Baud115200)
                     self.serial.setDataBits(QSerialPort.Data8)
                     self.serial.setParity(QSerialPort.NoParity)
                     self.serial.setStopBits(QSerialPort.OneStop)
                     self.serial.setFlowControl(QSerialPort.NoFlowControl)
+                    print(self.com_port)
                 if not self.serial.open(QIODevice.ReadWrite) or not port.isChecked():
                     self.sync = False
                     self.serial_timer.stop()
@@ -269,19 +262,19 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     port.setChecked(False)
                     self.serial.close()
                     print(f"Closed port: {self.com_port}".ljust(200))
-                    self.connection.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:8pt;\">Status: Disconnected</span></p></body></html>", None))
+                    self.connection.setText(QCoreApplication.translate("MainWindow", "Status: Disconnected", None))
                 else:
                     if not self.serial_timer.isActive():
                         self.serial.write(f'C{self.x};{self.y};{self.z}\n'.encode('utf_8'))
                         self.serial_timer.timeout.connect(self.start_Serial_Move)
                         self.serial_timer.start(self.serialTimerDelay)
                         print(f"Opened port: {self.com_port}".ljust(200))
-                        self.connection.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:8pt;\">Status: Connected</span></p></body></html>", None))
+                        self.connection.setText(QCoreApplication.translate("MainWindow", f"Status: Connected to {port.text()}", None))
                         self.sync = True
                     break
             except Exception as e:
                 port.setChecked(False)
-                self.connection.setText(QCoreApplication.translate("MainWindow", f'<html><head/><body><p align=\"center\"><span style=\" font-size:8pt;\">Status: {str(e)}</span></p></body></html>', None))
+                self.connection.setText(QCoreApplication.translate("MainWindow", f"Status: {str(e)}", None))
                 print(str(e) + ' '*200, end='\r')
 
     def read_serial_data(self):
@@ -293,8 +286,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             while b'\n' in self.buffer:
                 line, self.buffer = self.buffer.split(b'\n', 1)
                 decoded_data = line.decode('utf_8')
-                print(f'ARDUINO: {decoded_data.strip()}'.ljust(200), end='\r')
-                self.print.setText(QCoreApplication.translate("MainWindow", f'<html><head/><body><p align=\"center\"><span style=\" font-size:8pt;\">{decoded_data.strip()}</span></p></body>'))
+                #print(f'ARDUINO: {decoded_data.strip()}'.ljust(200), end='\r')
+                self.print.setText(QCoreApplication.translate("MainWindow", f'{decoded_data.strip()}'))
                 if "C" in decoded_data:
                     coords = decoded_data[1:].split(';',3)
                     if len(coords)==3:
@@ -392,23 +385,23 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def on_save_point(self): # save point
         self.points=[self.sp1.text(),self.sp2.text(),self.sp3.text(),self.sp4.text(),self.sp5.text()]
         self.stop_move()
-        self.Dialog = Dialog(self.points)
-        self.Dialog.exec()
-        if self.Dialog.save:
-            self.sp_buttons[self.Dialog.index].setText(QCoreApplication.translate("MainWindow", self.Dialog.name_input.text(), None))
-            self.sp_vars[self.Dialog.index]=[self.x,self.y,self.z]
-            print(self.Dialog.index)
-            if self.Dialog.index == 0:
+        self.saveDialog = SaveDialog(self.points)
+        self.saveDialog.exec()
+        if self.saveDialog.save:
+            self.sp_buttons[self.saveDialog.index].setText(QCoreApplication.translate("MainWindow", self.saveDialog.name_input.text(), None))
+            self.sp_vars[self.saveDialog.index]=[self.x,self.y,self.z]
+            print(self.saveDialog.index)
+            if self.saveDialog.index == 0:
                 self.sp1_xyz=[self.x,self.y,self.z]
-            elif self.Dialog.index == 1:
+            elif self.saveDialog.index == 1:
                 self.sp2_xyz=[self.x,self.y,self.z]
-            elif self.Dialog.index == 2:
+            elif self.saveDialog.index == 2:
                 self.sp3_xyz=[self.x,self.y,self.z]
-            elif self.Dialog.index == 3:
+            elif self.saveDialog.index == 3:
                 self.sp4_xyz=[self.x,self.y,self.z]
-            elif self.Dialog.index == 4:
+            elif self.saveDialog.index == 4:
                 self.sp5_xyz=[self.x,self.y,self.z]
-            print(self.Dialog.selection+' changed to: '+self.Dialog.name_input.text().ljust(200),end='\r')
+            print(self.saveDialog.selection+' changed to: '+self.saveDialog.name_input.text().ljust(200),end='\r')
         else:
             print('canceled'.ljust(200),end='\r')
         self.is_key_W_pressed=False
@@ -458,7 +451,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.main_plot.setYRange(-w, w)
         self.z_axis.setXRange(0, 1)
         self.z_axis.setYRange(-h, h)
-        print(str([l,w,h]).ljust(200), end='\r')
+        #print(str([l,w,h]).ljust(200), end='\r')
 
     def on_speed(self):
         print(str(self.speed.value()/100).ljust(200), end='\r')
@@ -598,6 +591,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.moveSpace(self.step)
         self.start_Serial_Move()
         self.plotFactor()
+
+    def toggleX(self, state):
+        self.serial.write(f'X{state}\n'.encode('utf_8'))
+        if state == "ON":
+            print("Enable X")
+        else:
+            print("Disable X")
+
+    def toggleY(self, state):
+        self.serial.write(f'Y{state}\n'.encode('utf_8'))
+        if state == "ON":
+            print("Enable Y")
+        else:
+            print("Disable Y")
         
     def keyPressEvent(self, event): 
         if not event.isAutoRepeat():
@@ -611,6 +618,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 except Exception as e: print(str(e).ljust(200), end='\r')
             if key == QtCore.Qt.Key_P:
                 self.precisionScript()
+                
+            if key == QtCore.Qt.Key_X:
+                self.serial.write('X\n'.encode('utf_8'))
+            if key == QtCore.Qt.Key_Y:
+                self.serial.write('Y\n'.encode('utf_8'))
+                
             if self.is_step_mode:
                 self.stepModeScript(key)      
             else:
@@ -678,13 +691,182 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             self.plotFactor()
 
+    def loadSettings(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open File", "", ".csv Files (*.csv*)")
+        if file_path:
+            print("Selected File:", file_path)
+            settings = pd.read_csv(file_path)
+            self.autoDia.applyLoadedSettings(settings)
+
+    def saveSettings(self):
+        file_path, _ = QFileDialog.getSaveFileName(None, "Save File", "", ".csv Files (*.csv)")
+        if file_path:
+            self.autoDia.saveSettings(file_path)
+    
     def closeEvent(self, event):
         try:
             self.serial.close()
-            print(f"Closed port: {self.com_port}".ljust(200))  # Confirm port is closed
-        except:
-            pass
+            print(f"Closed port: {self.com_port}")  # Confirm port is closed
+        except Exception as e:
+            print(e)
+            
+        for instrument in [self.autoDia.camera, self.autoDia.functionGenerator, self.autoDia.multimeterX, self.autoDia.multimeterY]:
+            try:
+                if instrument is not None:
+                    instrument.close()
+                    print(f"Closed instrument: {instrument}")
+                else:
+                    pass
+            except:
+                print(f"Failed to close instrument: {instrument}")
+
         print('\nExited')
+
+    def stoppable_delay(self, ms):
+        self.delay_loop = QEventLoop()
+        QTimer.singleShot(ms, self.delay_loop.quit)
+        self.delay_loop.exec()
+
+    def stop_stoppable_delay(self):
+        if hasattr(self, "delay_loop") and self.delay_loop.isRunning():
+            self.delay_loop.quit()
+    
+    def singleRun(self, relay, button, inst, fgen_name, position, direction):
+        filename = f'{direction}_{position}_{self.autoDia.voltageSelect.value()}V'
+        save_directory = self.autoDia.saveDirectory
+        print("Reset waveform")
+        resetWaveform(inst)
+        relay("ON")
+        self.stoppable_delay(1000)
+        if not button.isChecked(): # Before and after each delay, must check if button is still toggled, otherwise, may continue
+            return
+        outputSignal(inst, fgen_name, True)
+        if self.autoDia.recordButton.isChecked():
+            print(f"Start recording at {self.autoDia.fpsSelect.value()} fps for {direction}")
+            self.autoDia.active_dictionary={}
+            self.autoDia.captureCamera.startRecord(filename=filename,
+                                                   save_directory=save_directory)
+        self.stoppable_delay(self.autoDia.recordingTimeSelect.value()*1e3)
+        if not button.isChecked():
+            return
+        print("Stop recording")
+        if self.autoDia.recordButton.isChecked():
+            self.autoDia.captureCamera.stopRecord()
+            raw = np.array(list(self.autoDia.active_dictionary.items()), dtype=float)
+            raw[:, 0] -= raw[0, 0]
+            data = pd.DataFrame(raw, columns=["timestamp (s)", "voltage"])
+            data.to_csv(f'{save_directory}/{filename}.csv', index=False)
+        outputSignal(inst, fgen_name, False)
+        relay("OFF")
+
+    def shutoffInstruments(self, inst, fgen_name, relays):
+        outputSignal(inst, fgen_name, False)
+        for relay in relays:
+            relay("OFF")
+    
+    @Slot()
+    def runExperiment(self, checked):
+        playButton = self.autoDia.playButton
+        runs = self.autoDia.numberIncrementsSelect.value()
+        increment = self.autoDia.stepIncrementSelect.value() // self.step_factor
+        position = self.z
+        total_time = 2*(1+self.autoDia.recordingTimeSelect.value())*runs
+        timer = countdownTimer(total_time, self.autoDia.timeRemainingPanel, self.autoDia.progressBar)
+        inst = self.autoDia.functionGenerator
+        try:
+            if inst is not None:
+                fgen_name = self.autoDia.functionGeneratorSelect.currentText()
+                if checked:
+                    timer.start()
+                    print("\nStarting. . .")
+                    run=1
+                    while run < runs+1 and playButton.isChecked():
+                        if self.autoDia.pauseButton.isChecked():
+                            print(f"Paused on run {run} out of {runs}.", end='\r')
+                            self.stoppable_delay(100)
+                            timer.pause()
+                        else:
+                            timer.resume()
+                            if self.z != self.z_actual:
+                                print(f"Waiting for position: {self.z_actual*self.step_factor} -> {self.z*self.step_factor}", end='\r') 
+                                self.z=position
+                                self.stoppable_delay(100)
+                            else:
+                                print(f"\nBeginning run {run} of {runs}")
+                                if not playButton.isChecked(): # Before, in-between, and after each run, must check if button is still toggled, otherwise, may continue
+                                    break
+                                self.autoDia.direction = 'X'
+                                self.singleRun(self.toggleX, playButton, inst, fgen_name, position, "X")
+                                if not playButton.isChecked():
+                                    self.stop_stoppable_delay()
+                                    break
+                                self.autoDia.direction = 'Y'
+                                self.singleRun(self.toggleY, playButton, inst, fgen_name, position, "Y")
+                                if not playButton.isChecked():
+                                    break
+                                print(f"Move up {self.autoDia.stepIncrementSelect.value()} um")
+                                position+=increment
+                                self.z=position
+                                print(f"Current position: {position*self.step_factor} um\n")
+                                run+=1
+                    timer.stop()
+                    playButton.setChecked(False)
+                    print("Finished")
+                else:
+                    timer.stop()
+                    self.stop_stoppable_delay()
+                    self.shutoffInstruments(inst, fgen_name, [self.toggleX, self.toggleY])
+                    print("Stopped")
+            else:
+                playButton.setChecked(False)
+        except:
+            timer.stop()
+            self.stop_stoppable_delay()
+            self.shutoffInstruments(inst, fgen_name, [self.toggleX, self.toggleY])
+            print("Stopped")
+      
+class countdownTimer():
+    def __init__(self, total_seconds, target_object, progress_bar):
+        super().__init__()
+        self.progress_bar = progress_bar
+        self.total_seconds = total_seconds
+        self.time = self.total_seconds
+        self.target_object = target_object
+        self.target_object.display(self.total_seconds)
+        self.timer = QTimer()
+        for timer, handler in [(self.timer, self.update)]:
+            timer.timeout.connect(handler)
+
+    def start(self):
+        self.displayHMS(self.total_seconds)
+        self.timer.start(1000)
+        self.progress_bar.setValue(0)
+
+    def pause(self):
+        if self.timer.isActive():
+            self.timer.stop()
+            self.timer.timeout.disconnect(self.update)
+
+    def resume(self):
+        if not self.timer.isActive():
+            self.timer.timeout.connect(self.update)
+            self.timer.start(1000)
+    
+    def update(self):
+        self.time -= 1
+        self.displayHMS(self.time)
+        self.progress_bar.setValue(int(((self.total_seconds-self.time) / self.total_seconds)*100))
+
+    def displayHMS(self, time):
+        h, m, s = time // 3600, (time % 3600) // 60, time % 60
+        self.target_object.display(f"{int(h):02}:{int(m):02}:{int(s):02}")
+        
+    def stop(self):
+        self.timer.stop()
+        self.timer.timeout.disconnect(self.update)
+        self.time = self.total_seconds
+        self.target_object.display("00:00:00")
+        self.progress_bar.setValue(100)
 
 if not QtWidgets.QApplication.instance():
     app = QtWidgets.QApplication(sys.argv)

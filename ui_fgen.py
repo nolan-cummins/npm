@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'fgenrpyGEn.ui'
+## Form generated from reading UI file 'fgenyzTjWR.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.8.1
 ##
@@ -18,8 +18,8 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
     QDoubleSpinBox, QFrame, QHBoxLayout, QLCDNumber,
     QLabel, QProgressBar, QPushButton, QSizePolicy,
-    QSpacerItem, QSpinBox, QToolButton, QVBoxLayout,
-    QWidget)
+    QSlider, QSpacerItem, QSpinBox, QToolButton,
+    QVBoxLayout, QWidget)
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -53,6 +53,34 @@ class Ui_Dialog(object):
         self.line_3.setFrameShadow(QFrame.Shadow.Sunken)
 
         self.verticalLayout_6.addWidget(self.line_3)
+
+        self.horizontalLayout_13 = QHBoxLayout()
+        self.horizontalLayout_13.setObjectName(u"horizontalLayout_13")
+        self.label_9 = QLabel(self.verticalLayoutWidget_6)
+        self.label_9.setObjectName(u"label_9")
+        self.label_9.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignTrailing|Qt.AlignmentFlag.AlignVCenter)
+
+        self.horizontalLayout_13.addWidget(self.label_9)
+
+        self.exposureTimeSlider = QSlider(self.verticalLayoutWidget_6)
+        self.exposureTimeSlider.setObjectName(u"exposureTimeSlider")
+        self.exposureTimeSlider.setMinimum(100)
+        self.exposureTimeSlider.setMaximum(20000)
+        self.exposureTimeSlider.setOrientation(Qt.Orientation.Horizontal)
+        self.exposureTimeSlider.setTickInterval(10)
+
+        self.horizontalLayout_13.addWidget(self.exposureTimeSlider)
+
+        self.exposureTimeValue = QSpinBox(self.verticalLayoutWidget_6)
+        self.exposureTimeValue.setObjectName(u"exposureTimeValue")
+        self.exposureTimeValue.setMinimumSize(QSize(50, 0))
+        self.exposureTimeValue.setMinimum(100)
+        self.exposureTimeValue.setMaximum(20000)
+
+        self.horizontalLayout_13.addWidget(self.exposureTimeValue)
+
+
+        self.verticalLayout_6.addLayout(self.horizontalLayout_13)
 
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
@@ -197,8 +225,9 @@ class Ui_Dialog(object):
         self.fpsSelect = QDoubleSpinBox(self.verticalLayoutWidget_6)
         self.fpsSelect.setObjectName(u"fpsSelect")
         self.fpsSelect.setMinimumSize(QSize(100, 0))
-        self.fpsSelect.setDecimals(5)
-        self.fpsSelect.setMaximum(1000.000000000000000)
+        self.fpsSelect.setDecimals(0)
+        self.fpsSelect.setMinimum(1.000000000000000)
+        self.fpsSelect.setMaximum(169.000000000000000)
         self.fpsSelect.setValue(100.000000000000000)
 
         self.horizontalLayout.addWidget(self.fpsSelect)
@@ -379,6 +408,19 @@ class Ui_Dialog(object):
 
         self.verticalLayout_7.addWidget(self.showTimestamp)
 
+        self.showExposure = QCheckBox(self.layoutWidget)
+        self.showExposure.setObjectName(u"showExposure")
+        self.showExposure.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.showExposure.setChecked(True)
+
+        self.verticalLayout_7.addWidget(self.showExposure)
+
+        self.showPosition = QCheckBox(self.layoutWidget)
+        self.showPosition.setObjectName(u"showPosition")
+        self.showPosition.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+        self.verticalLayout_7.addWidget(self.showPosition)
+
         self.showScalebar = QCheckBox(self.layoutWidget)
         self.showScalebar.setObjectName(u"showScalebar")
         self.showScalebar.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -499,6 +541,7 @@ class Ui_Dialog(object):
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"Dialog", None))
         self.label_15.setText(QCoreApplication.translate("Dialog", u"Settings", None))
+        self.label_9.setText(QCoreApplication.translate("Dialog", u"Exposure (ms)", None))
         self.label_6.setText(QCoreApplication.translate("Dialog", u"Step Increment (um)", None))
         self.label_13.setText(QCoreApplication.translate("Dialog", u"Number of Increments", None))
         self.label_11.setText(QCoreApplication.translate("Dialog", u"Waveform", None))
@@ -527,6 +570,8 @@ class Ui_Dialog(object):
         self.showDirection.setText(QCoreApplication.translate("Dialog", u"Direction (X/Y)", None))
         self.showVoltage.setText(QCoreApplication.translate("Dialog", u"Voltage", None))
         self.showTimestamp.setText(QCoreApplication.translate("Dialog", u"Timestamp", None))
+        self.showExposure.setText(QCoreApplication.translate("Dialog", u"Exposure", None))
+        self.showPosition.setText(QCoreApplication.translate("Dialog", u"Position", None))
         self.showScalebar.setText(QCoreApplication.translate("Dialog", u"Scalebar", None))
         self.label_16.setText(QCoreApplication.translate("Dialog", u"Instruments", None))
         self.label_3.setText(QCoreApplication.translate("Dialog", u"Multimeter (X)", None))

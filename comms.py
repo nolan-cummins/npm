@@ -66,6 +66,17 @@ def setVoltage(inst, fgen_name, volt):
     except Exception as e:
         print(f'Error setting voltage parameters: {e}')
 
+def getVoltage(inst):
+    try:
+        if inst is None:
+            print("Error getting voltage: No instrument defined!")
+            return None
+        volt_read = np.float64(inst.query('READ?'))
+        return volt_read
+    except Exception as e:
+        print(f'Error getting voltage from {inst}: {e}')
+        return None
+
 def resetWaveform(inst, phase=0):
     inst.write("BURS:STAT ON")   # Enable burst mode
     inst.write("BURS:NCYC 1")    # One cycle per trigger

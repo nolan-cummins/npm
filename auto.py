@@ -2,11 +2,62 @@ from main import *
 from comms import *
 from camera import captureCamera
 from functools import partial
+import pypylon.pylon as py
+import cv2
 
 import ui_fgen
 reload(ui_fgen)
 from ui_fgen import Ui_Dialog as Ui_Auto
 
+def textBackground(text, fontScale, thickness, pos):
+    (textWidth, textHeight), baseline = cv2.getTextSize(str(text), cv2.FONT_HERSHEY_SIMPLEX, fontScale, thickness)
+    rect = [(pos[0], pos[1]), (pos[0] + textWidth, pos[1] + textHeight+baseline)]
+    textPos = (pos[0], pos[1] + textHeight + baseline // 2)
+    
+    return (rect, textPos)
+
+class videoSaver(QThread):
+    def __init__(self):
+        super().__init__()
+        
+    def run(self):
+      self.exec_()
+
+    @Slot(tuple)
+    def saveFrame(self, frame_out):
+        frame, out = frame_out
+        if out is not None and frame is not None:
+            try:
+                out.write(frame)
+            except Exception as e:
+                print(f"Error reading frame from camera thread: {e}")
+              
+    def stop(self):
+        self.quit()
+        self.wait()    
+
+class pollMultimeter(QThread):
+    voltage = Signal(float)
+
+    def __init__(self, inst):
+        super().__init__()
+
+        self.inst = inst
+        self.running = True
+    
+    def run(self):
+        while self.running:
+            try:
+                volt = getVoltage(self.inst)
+                self.voltage.emit(volt)
+            except Exception as e:
+                print(e)
+
+    def stop(self):
+        self.running = False
+        self.quit()
+        self.wait()
+        
 class AutomationDialog(QDialog, Ui_Auto):
     run_experiment = Signal(bool)
     
@@ -26,7 +77,11 @@ class AutomationDialog(QDialog, Ui_Auto):
         self.cameraFrame.setPixmap(self.blank)
         self.cameraFrame.setAlignment(Qt.AlignCenter)
         self.captureCamera = None
-        self.startCamera(0)
+        self.direction = ''
+        self.active_voltage = 0
+        self.voltage_x = 0
+        self.voltage_y = 0
+        self.videoSaver = videoSaver()
 
         self.periodSelect.editingFinished.connect(self.syncPer)
         self.periodValue=0.0
@@ -45,8 +100,7 @@ class AutomationDialog(QDialog, Ui_Auto):
         
         self.devices = getInstruments()
 
-        self.selectBoxes = [self.cameraSelectionSelect,
-                            self.functionGeneratorSelect,
+        self.selectBoxes = [self.functionGeneratorSelect,
                             self.multimeterXSelect,
                             self.multimeterYSelect]
 
@@ -60,23 +114,153 @@ class AutomationDialog(QDialog, Ui_Auto):
                                   self.fpsSelect, self.recordingTimeSelect, self.showFPS, self.showDirection,
                                   self.showVoltage, self.showTimestamp, self.showScalebar]
 
+        self.exposureTimeSlider.valueChanged.connect(self.exposureTimeValue.setValue)
+        self.exposureTimeValue.valueChanged.connect(self.exposureTimeSlider.setValue)
+        self.exposureTimeValue.valueChanged.connect(self.onExposure)
+        self.fpsSelect.editingFinished.connect(self.onFPS)
+        self.recordButton.clicked.connect(self.onRecord)
         
         for selectBox in self.selectBoxes:
             for dev, name in self.devices.items():
+                autodetect = False
+                if "04638827" in name:
+                    name = "KEITHLEY (X)"
+                    autodetect = True
+                elif "04611760" in name:
+                    name = "KEITHLEY (Y)"
+                elif "33220A" in name:
+                    name = "AGILENT (33220A)"
+                elif "No IDN" in name:
+                    continue
                 selectBox.addItem(name)
                 selectBox.setItemData(selectBox.count() - 1, dev)
+                    
             selectBox.currentIndexChanged.connect(partial(self.connectInstrument, selectBox))
 
-    def startCamera(self, camera):
-        self.captureCamera = captureCamera(camera)
-        self.captureCamera.frame_signal.connect(self.updateFrame)
-        if not self.captureCamera.isRunning():
-            self.captureCamera.running = True
+        self.tlf = py.TlFactory.GetInstance()
+        cameras = self.tlf.EnumerateDevices()
+        
+        self.cameraSelectionSelect.currentIndexChanged.connect(self.getCamera)
+        for c in cameras:
+            name = c.GetModelName()
+            self.cameraSelectionSelect.addItem(name)
+            self.cameraSelectionSelect.setItemData(self.cameraSelectionSelect.count() - 1, c)
+
+            try:
+                cam = py.InstantCamera(self.tlf.CreateDevice(c))
+                cam.Close()
+                print(f"Closed: {name}")
+            except Exception as e:
+                print(f"Error checking camera device {c}")
+
+
+        if len(cameras) == 1:
+            camera = cameras[0]
+            name = camera.GetModelName()
+            self.cameraSelectionSelect.setCurrentText(name)
+            self.startCamera(camera, name)
+            
+    @property
+    def getCamera(self):
+        if self.captureCamera is not None:
+            self.captureCamera.stop()
+        index = self.cameraSelectionSelect.currentIndex()
+        name = self.cameraSelectionSelect.currentText()
+        camera = self.cameraSelectionSelect.itemData(index)
+        print(f"Starting {name}...")
+        self.cameraFrame.setPixmap(self.blank)
+        self.startCamera(camera, name)
+
+    def onRecord(self):
+        if self.captureCamera is not None:
+            if self.playButton.isChecked() and not self.captureCamera.record:
+                if self.recordButton.isChecked():
+                    self.captureCamera.startRecord()
+                else:
+                    self.captureCamera.stopRecord()
+        else:
+            print("No camera to record!")
+        
+    def startCamera(self, camera=None, name='Unknown Camera'):
+        if camera.__class__.__name__ == "DeviceInfo":
+            self.captureCamera = captureCamera(camera, self.fpsSelect.value(), name, self.tlf)
+            self.captureCamera.timestamp.connect(self.dataAcquisition)
+            self.captureCamera.frame_out.connect(self.videoSaver.saveFrame)
+            self.captureCamera.display_out.connect(self.updateFrame)
+            self.videoSaver.start()
             self.captureCamera.start()
+            if not self.captureCamera.isRunning():
+                self.captureCamera.running = True
+            self.captureCamera.startCamera()
+            if self.captureCamera.isRunning():
+                self.statusMessage.setText(QCoreApplication.translate("Dialog", u"Status: Connected", None))
+        elif camera == 0:
+            pass
+        else:
+            print(f"{camera} is not PyPylon compatible!")
     
-    def updateFrame(self, q_image):
-        pixmap = QPixmap.fromImage(q_image)
+    def updateFrame(self, data):
+        frame, fps, exposure, record_state = data
+        if self.exposureTimeValue.value() != exposure:
+            self.exposureTimeValue.setValue(exposure)
+
+        if len(frame.shape) == 2:
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+        h, w, ch = frame.shape
+        bytes_per_line = w * ch
+        
+        if record_state:
+            circle_center = (w - 50, 50)
+            circle_radius = 15
+            circle_color = (0, 0, 255)
+            circle_thickness = -1
+            cv2.circle(frame, circle_center, circle_radius, circle_color, circle_thickness)
+
+        fontScale = 1.5
+        thickness = 1
+        fpsHeight = 0
+
+        if not self.playButton.isChecked():
+            self.direction = 'None'
+        
+        messages = [(self.showFPS.isChecked(), f"FPS: {fps:.2f}"),
+                    (self.showDirection.isChecked(), f'DIR: {self.direction}'),
+                    (self.showExposure.isChecked(), f'Exp: {exposure:.2f}'),
+                    (self.showVoltage.isChecked(), f'X: {self.voltage_x} V'),
+                    (self.showVoltage.isChecked(), f'Y: {self.voltage_y} V')]
+
+        total_height = 0
+        for checkbox, msg in messages:
+            if checkbox:
+                rect, pos = textBackground(msg, fontScale, thickness, (5, total_height))
+                cv2.rectangle(frame, rect[0], rect[1], color=(255, 255, 255), thickness=-1)
+                cv2.putText(frame, msg, pos, cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0,0,0), thickness, lineType=cv2.LINE_AA)
+                total_height += 5+rect[1][1]-rect[0][1]
+
+        q_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_BGR888)
+        pixmap = QPixmap.fromImage(q_image).scaled(self.cameraFrame.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.cameraFrame.setPixmap(pixmap)
+        
+    def dataAcquisition(self, time):
+        if self.direction == "X":
+            volt = self.voltage_x
+        elif self.direction == "Y":
+            volt = self.voltage_y
+        else:
+            volt = np.nan
+
+        self.active_voltage = volt
+        self.active_dictionary[time] = volt
+        
+    def onExposure(self):
+        value = self.exposureTimeValue.value()
+        if self.captureCamera is not None:
+            self.captureCamera.setExposure(value)
+
+    def onFPS(self):
+        if self.captureCamera is not None:
+            self.captureCamera.desired_fps = self.fpsSelect.value()
     
     def emitStart(self, checked):
         self.run_experiment.emit(checked)
@@ -146,32 +330,63 @@ class AutomationDialog(QDialog, Ui_Auto):
         idn = selectBox.itemData(index)
         name = selectBox.objectName()
         inst = rm.open_resource(idn)
+
+        multimeter_reset_cmd = """
+                               *RST
+                               :SENS:FUNC "VOLT:DC"
+                               """
         try:
+            inst_id = inst.query('*IDN?').strip()
             if "camera" in name:
                 self.camera = inst
-                print(f"Setting camera to: {inst.query('*IDN?').strip()}")
+                print(f"Setting camera to: {inst_id}")
             if "functionGenerator" in name:
                 self.functionGenerator = inst
-                print(f"Setting function generator to: {inst.query('*IDN?').strip()}")
+                print(f"Setting function generator to: {inst_id}")
             if "multimeterX" in name:
-                self.multimeterX = inst
-                print(f"Setting multimeter (X) to: {inst.query('*IDN?').strip()}")
+                if self.multimeterX is not None:
+                    self.multimeterX.stop()
+                print(f"Setting multimeter (X) to: {inst_id}")
+                print(f"Resetting {inst_id}...")
+                inst.write(multimeter_reset_cmd)
+                self.multimeterX = pollMultimeter(inst)
+                self.multimeterX.voltage.connect(self.onMultiX)
+                self.multimeterX.start()
             if "multimeterY" in name:
-                self.multimeterY = inst
-                print(f"Setting multimeter (Y) to: {inst.query('*IDN?').strip()}")
-        except:
-            print(f'Error connecting to {selectBox.currentText()}')
+                if self.multimeterY is not None:
+                    self.multimeterY.stop()
+                print(f"Setting multimeter (Y) to: {inst_id}")
+                print(f"Resetting {inst_id}...")
+                inst.write(multimeter_reset_cmd)
+                self.multimeterY = pollMultimeter(inst)
+                self.multimeterY.voltage.connect(self.onMultiY)
+                self.multimeterY.start()
+        except Exception as e:
+            print(f'Error connecting to {selectBox.currentText()}: {e}')
 
+    def onMultiX(self, voltage):
+        self.voltage_x = voltage
+        #print(f"X: {voltage}")
+
+    def onMultiY(self, voltage):
+        self.voltage_y = voltage
+        #print(f"Y: {voltage}")
+            
     def applySettings(self):
         inst = self.functionGenerator
         wave = self.waveformSelect.currentText()
         volt = self.voltageSelect.value()
         freq = self.frequencyValue
         fgen_name = self.functionGeneratorSelect.currentText()
-        
+
+        # self.onExposure()
+        # self.captureCamera.desired_fps = self.fpsSelect.value()
         setVoltage(inst, fgen_name, volt)
         setFrequency(inst, freq)
         setWaveform(inst, wave)
+        
+        self.onFPS()
+        self.onExposure()
 
     def applyLoadedSettings(self, settings):
         for option in self.setting_options:
@@ -222,10 +437,19 @@ class AutomationDialog(QDialog, Ui_Auto):
         print(f'Saving {df_settings}\n to {file_path}')
             
     def refresh(self):
-        print("Refreshing camera feed...")
+        print(f"Refreshing {self.captureCamera.name}...")
         self.captureCamera.stop()
-        self.startCamera(0)
+        self.statusMessage.setText(QCoreApplication.translate("Dialog", u"Status: Disconnected", None))
+        index = self.cameraSelectionSelect.currentIndex()
+        name = self.cameraSelectionSelect.currentText()
+        camera = self.cameraSelectionSelect.itemData(index)
+        self.cameraFrame.setPixmap(self.blank)
+        self.startCamera(camera, name)
+        
 
     def closeEvent(self, event):
-        self.captureCamera.stop()
+        threads = [self.captureCamera, self.multimeterX, self.multimeterY, self.videoSaver]
+        for thread in threads:
+            if thread is not None:
+                thread.stop()
         event.accept()
