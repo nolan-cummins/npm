@@ -1,5 +1,5 @@
 # nanopen-manipulator
-Tool to precisely manipulate nanopen
+Tool to precisely manipulate and automate NanoPen experiments
 
 Run "python3 main.py"
 
@@ -8,6 +8,8 @@ Run "python3 main.py"
 - pyqtgraph
 - numpy
 - pyserial
+- PyPylon
+- cv2
 
 # main
 ![image](https://github.com/user-attachments/assets/6ace0c1d-5a3b-4c8c-b546-75d3e87e606c)
