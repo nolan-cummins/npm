@@ -1,6 +1,7 @@
 from main import *
 from comms import *
 from camera import captureCamera
+from video_loader import processVideo, nearestOdd
 from functools import partial
 import pypylon.pylon as py
 import cv2
@@ -57,6 +58,37 @@ class pollMultimeter(QThread):
         self.running = False
         self.quit()
         self.wait()
+
+class cameraFrameMouseTracking(QLabel):
+    coords = Signal(tuple)
+    clicked = Signal()
+    wheelScrolled = Signal(int)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        x, y = event.pos().x(), event.pos().y()
+        self.coords.emit((x, y))
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+            
+    def wheelEvent(self, event):
+        # 120 units per notch
+        steps = event.angleDelta().y() // 120
+        if steps:
+            self.wheelScrolled.emit(int(steps))
+            event.accept()
+        else:
+            super().wheelEvent(event)
         
 class AutomationDialog(QDialog, Ui_Auto):
     run_experiment = Signal(bool)
@@ -71,8 +103,12 @@ class AutomationDialog(QDialog, Ui_Auto):
         self.applyButton.clicked.connect(self.applySettings)
         self.playButton.clicked.connect(self.emitStart)
 
-        self.cameraFrame = QLabel(self)
+        self.cameraFrame = cameraFrameMouseTracking(self)
         self.cameraFrame.setGeometry(QRect(10, 10, 710, 568))
+        self.p_shape=(710, 568)
+        self.cameraFrame.coords.connect(self.pollCoords)
+        self.cameraFrame.clicked.connect(self.startTracking)
+        self.cameraFrame.wheelScrolled.connect(lambda notches: self.zoomSlider.setValue(self.zoomSlider.value() + notches * 3))
         self.blank = QPixmap("automation_icon.png").scaled(self.cameraFrame.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.cameraFrame.setPixmap(self.blank)
         self.cameraFrame.setAlignment(Qt.AlignCenter)
@@ -89,6 +125,7 @@ class AutomationDialog(QDialog, Ui_Auto):
         self.frequencyValue=0.0
         self.frequencyFactor=1
         self.periodFactor=1
+        self.timestamp=0
         for widget in self.findChildren(QObject):
             if "Select" in widget.objectName() and not widget.objectName() == "numberIncrementsSelect":
                 widget.textFromValue = lambda value: str(value).rstrip("0").rstrip(".")
@@ -97,6 +134,32 @@ class AutomationDialog(QDialog, Ui_Auto):
         self.saveDirectory=os.getcwd()
         self.setSaveDir(self.saveDirectory)
 
+
+        actions = [(self.blurToggle.toggled, [self.blurSlider.setEnabled, self.blurValue.setEnabled]),
+                   (self.adaptToggle.toggled, [self.adaptSliderArea.setEnabled, self.adaptValueArea.setEnabled, self.adaptSliderC.setEnabled, self.adaptValueC.setEnabled]),
+                   (self.dilationToggle.toggled, [self.dilationSlider.setEnabled, self.dilationValue.setEnabled]),
+                   (self.frameDiffToggle.toggled, [self.frameDiffSlider.setEnabled, self.frameDiffValue.setEnabled, self.frameDiffSliderMax.setEnabled, self.frameDiffValueMax.setEnabled]),
+                   (self.blurSlider.valueChanged, [self.blurValue.setValue]),
+                   (self.blurValue.editingFinished, [lambda: self.blurSlider.setValue(self.blurValue.value())]),
+                   (self.adaptSliderArea.valueChanged, [self.adaptValueArea.setValue]),
+                   (self.adaptValueArea.editingFinished, [lambda: self.adaptSliderArea.setValue(self.adaptValueArea.value())]),
+                   (self.adaptSliderC.valueChanged, [self.adaptValueC.setValue]),
+                   (self.adaptValueC.editingFinished, [lambda: self.adaptSliderC.setValue(self.adaptValueC.value())]),
+                   (self.dilationSlider.valueChanged, [self.dilationValue.setValue]),
+                   (self.dilationValue.editingFinished, [lambda: self.dilationSlider.setValue(self.dilationValue.value())]),
+                   (self.frameDiffSlider.valueChanged, [self.frameDiffValue.setValue]),
+                   (self.frameDiffValue.editingFinished, [lambda: self.frameDiffSlider.setValue(self.frameDiffValue.value())]),
+                   (self.frameDiffSliderMax.valueChanged, [self.frameDiffValueMax.setValue]),
+                   (self.frameDiffValueMax.editingFinished, [lambda: self.frameDiffSliderMax.setValue(self.frameDiffValueMax.value())]),
+                   (self.zoomSlider.valueChanged, [self.zoomValue.setValue]),
+                   (self.zoomValue.editingFinished, [lambda: self.zoomSlider.setValue(self.zoomValue.value())])]
+        for action, handlers in actions:
+            for handler in handlers:
+                action.connect(handler)
+                if "editingFinished" not in str(action):
+                    action.connect(self.passVideoSettings)
+        self.showOriginal.toggled.connect(self.passVideoSettings)
+        self.invertToggle.toggled.connect(self.passVideoSettings)
         
         self.devices = getInstruments()
 
@@ -119,13 +182,30 @@ class AutomationDialog(QDialog, Ui_Auto):
         self.exposureTimeValue.valueChanged.connect(self.onExposure)
         self.fpsSelect.editingFinished.connect(self.onFPS)
         self.recordButton.clicked.connect(self.onRecord)
+        self.experimentSelect.currentIndexChanged.connect(self.switchExperiments)
+        self.stepIncrementSelect.editingFinished.connect(partial(self.syncIncrement, "step"))
+        self.numberIncrementsSelect.editingFinished.connect(partial(self.syncIncrement, "number"))
+        self.voltageSelect.editingFinished.connect(partial(self.syncIncrement, "voltage"))
+        self.switchExperiments()
+
+        self.settings={"blurToggle": False,
+                       "blurSlider": 0,
+                       "adaptToggle": False,
+                       "adaptSliderArea": 21,
+                       "adaptSliderC": 4,
+                       "invertToggle": False,
+                       "dilationToggle": False,
+                       "dilationSlider": 0,
+                       "frameDiffToggle": False,
+                       "frameDiffSlider": 25,
+                       "frameDiffSliderMax": 100,
+                       "showOriginal": False,
+                       "zoomSlider": 0}
         
         for selectBox in self.selectBoxes:
             for dev, name in self.devices.items():
-                autodetect = False
                 if "04638827" in name:
                     name = "KEITHLEY (X)"
-                    autodetect = True
                 elif "04611760" in name:
                     name = "KEITHLEY (Y)"
                 elif "33220A" in name:
@@ -140,7 +220,7 @@ class AutomationDialog(QDialog, Ui_Auto):
         self.tlf = py.TlFactory.GetInstance()
         cameras = self.tlf.EnumerateDevices()
         
-        self.cameraSelectionSelect.currentIndexChanged.connect(self.getCamera)
+        self.cameraSelectionSelect.textActivated.connect(self.getCamera)
         for c in cameras:
             name = c.GetModelName()
             self.cameraSelectionSelect.addItem(name)
@@ -152,25 +232,82 @@ class AutomationDialog(QDialog, Ui_Auto):
                 print(f"Closed: {name}")
             except Exception as e:
                 print(f"Error checking camera device {c}")
-
+        self.cameraSelectionSelect.addItem("Open Video")
 
         if len(cameras) == 1:
             camera = cameras[0]
             name = camera.GetModelName()
             self.cameraSelectionSelect.setCurrentText(name)
             self.startCamera(camera, name)
-            
-    @property
-    def getCamera(self):
+
+        self.videoLoader = None
+        self.tracking_info = None
+
+    @Slot()
+    def pollCoords(self, coords):
+        x, y = coords
+        p_w, p_h = self.p_shape
+        margin_x = (self.cameraFrame.width() - p_w) / 2
+        margin_y = (self.cameraFrame.height() - p_h) / 2
+        x -= margin_x
+        y -= margin_y
+        if self.videoLoader is not None:
+            self.videoLoader.pingCoords((x, y, p_w, p_h))
+        if self.captureCamera is not None:
+            self.captureCamera.pingCoords((x, y, p_w, p_h))
+
+    @Slot()
+    def startTracking(self):
+        if self.videoLoader is not None:
+            self.videoLoader.startTracking()
+        
+    @Slot()
+    def getCamera(self, name):
         if self.captureCamera is not None:
             self.captureCamera.stop()
         index = self.cameraSelectionSelect.currentIndex()
-        name = self.cameraSelectionSelect.currentText()
-        camera = self.cameraSelectionSelect.itemData(index)
-        print(f"Starting {name}...")
-        self.cameraFrame.setPixmap(self.blank)
-        self.startCamera(camera, name)
+        print(f'Selecting camera: {name}')
+        if name == "Open Video":
+            self.tracking_info = None
+            self.openVideo()
+        else:
+            if self.videoLoader is not None:
+                self.videoLoader.stop()
+                self.tracking_info = None
+                self.videoLoader = None
+            camera = self.cameraSelectionSelect.itemData(index)
+            print(f"Starting {name}...")
+            self.cameraFrame.setPixmap(self.blank)
+            self.startCamera(camera, name)
 
+    def openVideo(self):
+        options = QFileDialog.Options()
+        file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open File",
+            "",
+            "Video Files (*.avi;*.mp4;*.mov;*.mkv;*.wmv;*.flv;*.mpeg;*.mpg)",
+            options=options
+        )
+        if file:
+            if self.videoLoader is not None:
+                self.videoLoader.stop()
+            self.videoLoader = processVideo()
+            self.videoLoader.display_out.connect(self.updateFrame)
+            self.videoLoader.settings = self.settings
+            self.videoLoader.start()
+            self.videoLoader.loadVideo(file)
+
+    def passVideoSettings(self, value):
+        name = self.sender().objectName()
+        if name == "adaptSliderArea":
+            value = nearestOdd(value)
+            self.adaptSliderArea.setValue(value)
+            self.adaptValueArea.setValue(value)
+        if self.videoLoader is not None:
+            self.videoLoader.applySettings(name, value)
+        self.settings[name] = value
+            
     def onRecord(self):
         if self.captureCamera is not None:
             if self.playButton.isChecked() and not self.captureCamera.record:
@@ -194,13 +331,20 @@ class AutomationDialog(QDialog, Ui_Auto):
             self.captureCamera.startCamera()
             if self.captureCamera.isRunning():
                 self.statusMessage.setText(QCoreApplication.translate("Dialog", u"Status: Connected", None))
-        elif camera == 0:
+        elif camera == 0 or camera is None:
             pass
         else:
             print(f"{camera} is not PyPylon compatible!")
     
     def updateFrame(self, data):
-        frame, fps, exposure, record_state = data
+        if self.videoLoader is not None:
+            frame, fps, time, center, setpoint = data
+            if center is not None and setpoint is not None:
+                self.tracking_info = (center, setpoint)
+            exposure = 0
+            record_state = False
+        elif self.captureCamera is not None:
+            frame, fps, exposure, record_state = data
         if self.exposureTimeValue.value() != exposure:
             self.exposureTimeValue.setValue(exposure)
 
@@ -223,13 +367,19 @@ class AutomationDialog(QDialog, Ui_Auto):
 
         if not self.playButton.isChecked():
             self.direction = 'None'
-        
+            
         messages = [(self.showFPS.isChecked(), f"FPS: {fps:.2f}"),
                     (self.showDirection.isChecked(), f'DIR: {self.direction}'),
                     (self.showExposure.isChecked(), f'Exp: {exposure:.2f}'),
                     (self.showVoltage.isChecked(), f'X: {self.voltage_x} V'),
-                    (self.showVoltage.isChecked(), f'Y: {self.voltage_y} V')]
+                    (self.showVoltage.isChecked(), f'Y: {self.voltage_y} V'),
+                    (self.showTimestamp.isChecked(), time)]
 
+        if self.tracking_info is not None:
+            center, setpoint = self.tracking_info
+            dx, dy = np.array(setpoint) - np.array(center)
+            messages.append((self.showPosition.isChecked(), f'({dx:.0f}, {dy:.0f})'))
+        
         total_height = 0
         for checkbox, msg in messages:
             if checkbox:
@@ -240,6 +390,7 @@ class AutomationDialog(QDialog, Ui_Auto):
 
         q_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_BGR888)
         pixmap = QPixmap.fromImage(q_image).scaled(self.cameraFrame.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.p_shape = (pixmap.width(), pixmap.height()) 
         self.cameraFrame.setPixmap(pixmap)
         
     def dataAcquisition(self, time):
@@ -249,7 +400,7 @@ class AutomationDialog(QDialog, Ui_Auto):
             volt = self.voltage_y
         else:
             volt = np.nan
-
+        self.timestamp = time
         self.active_voltage = volt
         self.active_dictionary[time] = volt
         
@@ -301,7 +452,6 @@ class AutomationDialog(QDialog, Ui_Auto):
         print(f'Synchronizing frequency to {self.frequencyValue/self.frequencyFactor}')
         self.frequencySelect.setValue(self.frequencyValue/self.frequencyFactor)
 
-    
     def syncPer(self, press=True):
         if press and self.periodSelect.value() != 0:
             self.periodValue = self.periodSelect.value()*self.periodFactor
@@ -379,6 +529,14 @@ class AutomationDialog(QDialog, Ui_Auto):
         freq = self.frequencyValue
         fgen_name = self.functionGeneratorSelect.currentText()
 
+        if inst is None:
+            print("No function generator connected!")
+            return
+        if self.experimentSelect.currentText() == "Voltage":
+            if self.stepIncrementSelect.value() == 0:
+                self.syncIncrement("number")
+            elif self.numberIncrementsSelect.value() == 0:
+                self.syncIncrement("step")
         # self.onExposure()
         # self.captureCamera.desired_fps = self.fpsSelect.value()
         setVoltage(inst, fgen_name, volt)
@@ -421,6 +579,46 @@ class AutomationDialog(QDialog, Ui_Auto):
                 else:
                     print(f'Could not find {name} of type {objtype}')
 
+    def switchExperiments(self):
+        experiment = self.experimentSelect.currentText()
+        if experiment == "Z-Axis Offset":
+            self.stepIncrementLabel.setText(QCoreApplication.translate("Dialog", u"Step Increment (um)", None))
+            self.voltageLabel.setText(QCoreApplication.translate("Dialog", u"Voltage (Vpp)", None))
+        elif experiment == "Voltage":
+            self.stepIncrementLabel.setText(QCoreApplication.translate("Dialog", u"Step Increment (V)", None))
+            self.voltageLabel.setText(QCoreApplication.translate("Dialog", u"Max Voltage (V)", None))
+
+    def syncIncrement(self, sender):
+        if self.experimentSelect.currentText() == "Voltage":
+            max_voltage = self.voltageSelect.value()
+            increments = self.numberIncrementsSelect.value()
+            step = self.stepIncrementSelect.value()
+            if sender == "voltage" and increments == 0 and step == 0:
+                return
+            if step > 0:
+                if step > max_voltage:
+                    self.stepIncrementSelect.setValue(max_voltage)
+                    max_increments = 1
+                else:
+                    max_increments = max_voltage//step
+            elif sender == "step":
+                return                
+            if increments > 0:
+                min_step = max_voltage/increments
+            elif sender == "number":
+                return
+            if sender == "step":
+                self.numberIncrementsSelect.setValue(max_increments)
+            elif sender == "number":
+                self.stepIncrementSelect.setValue(min_step)
+            elif sender == "voltage":
+                if step == 0 and increments > 0:
+                    self.stepIncrementSelect.setValue(min_step)
+                elif increments == 0 and step > 0:
+                    self.numberIncrementsSelect.setValue(max_increments)
+                elif increments > 0 and step > 0:
+                    self.numberIncrementsSelect.setValue(max_increments)
+    
     def saveSettings(self, file_path):
         settings={}
         for option, variable in zip(self.setting_options, self.setting_variables) :
@@ -437,15 +635,18 @@ class AutomationDialog(QDialog, Ui_Auto):
         print(f'Saving {df_settings}\n to {file_path}')
             
     def refresh(self):
-        print(f"Refreshing {self.captureCamera.name}...")
-        self.captureCamera.stop()
-        self.statusMessage.setText(QCoreApplication.translate("Dialog", u"Status: Disconnected", None))
-        index = self.cameraSelectionSelect.currentIndex()
-        name = self.cameraSelectionSelect.currentText()
-        camera = self.cameraSelectionSelect.itemData(index)
-        self.cameraFrame.setPixmap(self.blank)
-        self.startCamera(camera, name)
-        
+        if self.videoLoader is not None:
+            self.videoLoader.restartVideo()
+            print(f"Refreshing {self.videoLoader.name}")
+        else:
+            print(f"Refreshing {self.captureCamera.name}...")
+            self.captureCamera.stop()
+            self.statusMessage.setText(QCoreApplication.translate("Dialog", u"Status: Disconnected", None))
+            index = self.cameraSelectionSelect.currentIndex()
+            name = self.cameraSelectionSelect.currentText()
+            camera = self.cameraSelectionSelect.itemData(index)
+            self.cameraFrame.setPixmap(self.blank)
+            self.startCamera(camera, name)
 
     def closeEvent(self, event):
         threads = [self.captureCamera, self.multimeterX, self.multimeterY, self.videoSaver]

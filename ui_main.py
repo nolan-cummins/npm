@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mainHhZtrL.ui'
+## Form generated from reading UI file 'mainkaUQsM.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.8.1
 ##
@@ -28,9 +28,9 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(810, 610)
-        MainWindow.setMinimumSize(QSize(810, 610))
-        MainWindow.setMaximumSize(QSize(810, 610))
+        MainWindow.resize(830, 610)
+        MainWindow.setMinimumSize(QSize(830, 610))
+        MainWindow.setMaximumSize(QSize(830, 610))
         self.save = QAction(MainWindow)
         self.save.setObjectName(u"save")
         self.save.setEnabled(True)
@@ -204,6 +204,7 @@ class Ui_MainWindow(object):
 
         self.home = QPushButton(self.verticalLayoutWidget_2)
         self.home.setObjectName(u"home")
+        self.home.setEnabled(False)
 
         self.verticalLayout_2.addWidget(self.home)
 
@@ -380,7 +381,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 810, 33))
+        self.menubar.setGeometry(QRect(0, 0, 830, 33))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
         self.menuUnits = QMenu(self.menubar)

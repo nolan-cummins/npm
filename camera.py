@@ -25,6 +25,7 @@ class captureCamera(QThread):
         self.out=None
         self.record=False
         self.camera=None
+        self.start_time = 0
         try:
             self.camera = py.InstantCamera(self.tlf.CreateDevice(self.cameraDevice)) 
             if self.camera is not None:
@@ -64,6 +65,10 @@ class captureCamera(QThread):
         if self.camera is not None:
             self.exposure=exposure
             self.camera.ExposureTime.Value=exposure
+
+    @Slot()
+    def pingCoords(self, coords):
+        print(coords)
         
     def run(self):
         camera = self.camera
@@ -109,7 +114,7 @@ class captureCamera(QThread):
                                 self.frame_out.emit((frame, self.out))
                             except Exception as e:
                                 print(f'Error emitting write frame: {e}')
-                            self.timestamp.emit(time.time())
+                            self.timestamp.emit(time.time()-self.start_time)
                             
                         if accumulator >= 1.0:
                             try: # update display
@@ -131,6 +136,7 @@ class captureCamera(QThread):
         output_filename = f'{save_directory}/{filename}.mp4'
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(output_filename, fourcc, self.desired_fps, self.frame_size, isColor=False)
+        self.start_time = time.time()
         self.record = True
         return
 

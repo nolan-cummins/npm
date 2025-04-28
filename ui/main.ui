@@ -6,19 +6,19 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>810</width>
+    <width>830</width>
     <height>610</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>810</width>
+    <width>830</width>
     <height>610</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>810</width>
+    <width>830</width>
     <height>610</height>
    </size>
   </property>
@@ -283,6 +283,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="home">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Home</string>
        </property>
@@ -607,7 +610,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>810</width>
+     <width>830</width>
      <height>33</height>
     </rect>
    </property>
@@ -641,7 +644,7 @@
    </property>
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentSave">
-     <normalon>../../../../../.designer/save_icon.png</normalon>
+     <normalon>../../../../../../../.designer/save_icon.png</normalon>
     </iconset>
    </property>
    <property name="text">
@@ -654,7 +657,7 @@
   <action name="load">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentOpen">
-     <normalon>../../../../../.designer/load_icon.png</normalon>
+     <normalon>../../../../../../../.designer/load_icon.png</normalon>
     </iconset>
    </property>
    <property name="text">
