@@ -42,6 +42,10 @@ Under the "Settings" section, there are two tabs: "Experiments" and "Video." "Ex
 
 Under "Experiments," there is a "Save Directory" button to set your folder to save recordings to. The various buttons below the video act as one would expect, with a play, pause, screenshot (not-implemented yet), record, stop, and restart camera (or reset video) button. When the record button is pressed, the experiment will run, automatically applying voltages, changing polarities, and recording specified durations of video(s) to the save directory, with appropriate naming. The program also saves a .csv file with the timestamps and voltages measured from the multimeters. Currently, it does not save both the X and Y, but only whichever is applied at the moment. This is because all the experiments of interest to me apply voltages in the X and Y directions independently, and not at the same time, so I have no need for both. This can easily be changed by adjusting the "dataAcquisition" function in auto.py to save both X and Y voltages. A progress bar alongside a timer provides an estimated time to completion, but it is just an approximation, as it's difficult to take into account how long the motors take to move, the relay to switch polarities, waiting for the electrodes to dissipate charge, etc., so it's not a definitive judgment of completion, but a helpful tool nonetheless.
 
+Under the "Overlay" section are various checkboxes for information to display, such as the measured voltages, FPS, and so on. Currently, the "Position" and "Scalebar" buttons have not been implemented.
+
+Finally, you can use the "File" button on the NPM window to save your defined experiment settings and parameters to reload them in the future to save time. Currently, the FREQUENCY setting is a bit bugged, but will be fixed soon.
+
 # Automation
 ![Screenshot 2025-04-28 001739](https://github.com/user-attachments/assets/35c56761-1943-4370-88b6-cde174e990f6)
 
