@@ -47,7 +47,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.autoDia.run_experiment.connect(self.runExperiment)
         self.autoDia.show()
         self.autoDia.timeRemainingPanel.display("00:00:00")
-        
+
         buttons = [
             (self.save_point, self.on_save_point), (self.set_zero, self.on_set_zero),
             (self.home, self.on_home), (self.step_mode, self.on_step_mode),
@@ -57,6 +57,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         for btn, handler in buttons:
             btn.clicked.connect(handler)
             btn.setFocusPolicy(Qt.NoFocus)
+
+        self.home.setEnabled(False)
         
         actions = [(self.actionum, self.on_unit_um), (self.actionsteps, self.on_unit_step), (self.load, self.loadSettings),
                   (self.save, self.saveSettings)]
@@ -249,11 +251,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 if port.isChecked():
                     self.com_port = port.objectName()
                     self.serial.setPortName(self.com_port) 
-                    self.serial.setBaudRate(QSerialPort.Baud115200)
-                    self.serial.setDataBits(QSerialPort.Data8)
-                    self.serial.setParity(QSerialPort.NoParity)
-                    self.serial.setStopBits(QSerialPort.OneStop)
-                    self.serial.setFlowControl(QSerialPort.NoFlowControl)
+                    self.serial.setBaudRate(QSerialPort.BaudRate(115200))
+                    self.serial.setDataBits(QSerialPort.DataBits.Data8)
+                    self.serial.setParity(QSerialPort.Parity.NoParity)
+                    self.serial.setStopBits(QSerialPort.StopBits.OneStop)
+                    self.serial.setFlowControl(QSerialPort.FlowControl.NoFlowControl)
                     print(self.com_port)
                 if not self.serial.open(QIODevice.ReadWrite) or not port.isChecked():
                     self.sync = False
@@ -731,8 +733,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         if hasattr(self, "delay_loop") and self.delay_loop.isRunning():
             self.delay_loop.quit()
     
-    def singleRun(self, relay, button, inst, fgen_name, position, direction):
-        filename = f'{direction}_{position}_{self.autoDia.voltageSelect.value()}V'
+    def singleRun(self, relay, button, inst, fgen_name, position, direction, voltage):
+        filename = f'{direction}_{position}_{voltage}V'
         save_directory = self.autoDia.saveDirectory
         print("Reset waveform")
         resetWaveform(inst)
@@ -766,10 +768,16 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     
     @Slot()
     def runExperiment(self, checked):
+        experiment = self.autoDia.experimentSelect.currentText()
         playButton = self.autoDia.playButton
         runs = self.autoDia.numberIncrementsSelect.value()
-        increment = self.autoDia.stepIncrementSelect.value() // self.step_factor
+        if experiment == "Z-Axis Offset":
+            increment = self.autoDia.stepIncrementSelect.value() // self.step_factor
+        elif experiment == "Voltage":
+            increment = self.autoDia.stepIncrementSelect.value()
         position = self.z
+        voltage = increment
+        max_voltage = self.autoDia.voltageSelect.value()
         total_time = 2*(1+self.autoDia.recordingTimeSelect.value())*runs
         timer = countdownTimer(total_time, self.autoDia.timeRemainingPanel, self.autoDia.progressBar)
         inst = self.autoDia.functionGenerator
@@ -787,28 +795,51 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                             timer.pause()
                         else:
                             timer.resume()
-                            if self.z != self.z_actual:
-                                print(f"Waiting for position: {self.z_actual*self.step_factor} -> {self.z*self.step_factor}", end='\r') 
-                                self.z=position
-                                self.stoppable_delay(100)
-                            else:
-                                print(f"\nBeginning run {run} of {runs}")
-                                if not playButton.isChecked(): # Before, in-between, and after each run, must check if button is still toggled, otherwise, may continue
-                                    break
-                                self.autoDia.direction = 'X'
-                                self.singleRun(self.toggleX, playButton, inst, fgen_name, position, "X")
-                                if not playButton.isChecked():
-                                    self.stop_stoppable_delay()
-                                    break
-                                self.autoDia.direction = 'Y'
-                                self.singleRun(self.toggleY, playButton, inst, fgen_name, position, "Y")
-                                if not playButton.isChecked():
-                                    break
-                                print(f"Move up {self.autoDia.stepIncrementSelect.value()} um")
-                                position+=increment
-                                self.z=position
-                                print(f"Current position: {position*self.step_factor} um\n")
-                                run+=1
+                            if experiment == "Z-Axis Offset":
+                                if self.z != self.z_actual:
+                                    print(f"Waiting for position: {self.z_actual*self.step_factor} -> {self.z*self.step_factor}", end='\r') 
+                                    self.z=position
+                                    self.stoppable_delay(100)
+                                else:
+                                    print(f"\nBeginning run {run} of {runs}")
+                                    if not playButton.isChecked(): # Before, in-between, and after each run, must check if button is still toggled, otherwise, may continue
+                                        break
+                                    self.autoDia.direction = 'Y'
+                                    self.singleRun(self.toggleY, playButton, inst, fgen_name, position, "Y", max_voltage)
+                                    if not playButton.isChecked():
+                                        self.stop_stoppable_delay()
+                                        break
+                                    self.autoDia.direction = 'X'
+                                    self.singleRun(self.toggleX, playButton, inst, fgen_name, position, "X", max_voltage)
+                                    if not playButton.isChecked():
+                                        break
+                                    print(f"Move up {self.autoDia.stepIncrementSelect.value()} um")
+                                    position+=increment
+                                    self.z=position
+                                    print(f"Current position: {position*self.step_factor} um\n")
+                                    run+=1
+                            elif experiment == "Voltage":
+                                actual_voltage = getVoltageFuncGen(inst)
+                                if actual_voltage != voltage:
+                                    print(f"Waiting for voltage: {actual_voltage} -> {voltage}", end='\r') 
+                                    setVoltage(inst, fgen_name, voltage)
+                                    self.stoppable_delay(100)
+                                else:
+                                    print(f"Current voltage: {voltage} um\n")
+                                    print(f"\nBeginning run {run} of {runs}")
+                                    if not playButton.isChecked(): # Before, in-between, and after each run, must check if button is still toggled, otherwise, may continue
+                                        break
+                                    self.autoDia.direction = 'Y'
+                                    self.singleRun(self.toggleY, playButton, inst, fgen_name, self.z, "Y", voltage)
+                                    if not playButton.isChecked():
+                                        self.stop_stoppable_delay()
+                                        break
+                                    self.autoDia.direction = 'X'
+                                    self.singleRun(self.toggleX, playButton, inst, fgen_name, self.z, "X", voltage)
+                                    if not playButton.isChecked():
+                                        break
+                                    voltage+=increment
+                                    run+=1
                     timer.stop()
                     playButton.setChecked(False)
                     print("Finished")
