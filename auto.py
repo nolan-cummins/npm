@@ -649,7 +649,7 @@ class AutomationDialog(QDialog, Ui_Auto):
             self.startCamera(camera, name)
 
     def closeEvent(self, event):
-        threads = [self.captureCamera, self.multimeterX, self.multimeterY, self.videoSaver]
+        threads = [self.captureCamera, self.multimeterX, self.multimeterY, self.videoSaver, self.videoLoader]
         for thread in threads:
             if thread is not None:
                 thread.stop()

@@ -33,7 +33,7 @@ from comms import *
 import save
 reload(save)
 from save import SaveDialog
-        
+
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -251,11 +251,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 if port.isChecked():
                     self.com_port = port.objectName()
                     self.serial.setPortName(self.com_port) 
-                    self.serial.setBaudRate(QSerialPort.BaudRate(115200))
-                    self.serial.setDataBits(QSerialPort.DataBits.Data8)
-                    self.serial.setParity(QSerialPort.Parity.NoParity)
-                    self.serial.setStopBits(QSerialPort.StopBits.OneStop)
-                    self.serial.setFlowControl(QSerialPort.FlowControl.NoFlowControl)
+                    self.serial.setBaudRate(QSerialPort.Baud115200)
+                    self.serial.setDataBits(QSerialPort.Data8)
+                    self.serial.setParity(QSerialPort.NoParity)
+                    self.serial.setStopBits(QSerialPort.OneStop)
+                    self.serial.setFlowControl(QSerialPort.NoFlowControl)
                     print(self.com_port)
                 if not self.serial.open(QIODevice.ReadWrite) or not port.isChecked():
                     self.sync = False
@@ -708,7 +708,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def closeEvent(self, event):
         try:
             self.serial.close()
-            print(f"Closed port: {self.com_port}")  # Confirm port is closed
+            print(f"\nClosed port: {self.com_port}")  # Confirm port is closed
         except Exception as e:
             print(e)
             

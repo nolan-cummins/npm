@@ -147,6 +147,8 @@ class captureCamera(QThread):
             self.out = None
     
     def stop(self):
+        if self.out is not None:
+            self.out.release()
         self.running = False
         self.camera.Close()
         self.quit()
