@@ -768,6 +768,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     
     @Slot()
     def runExperiment(self, checked):
+        print('test')
         experiment = self.autoDia.experimentSelect.currentText()
         playButton = self.autoDia.playButton
         runs = self.autoDia.numberIncrementsSelect.value()

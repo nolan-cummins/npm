@@ -68,7 +68,8 @@ class captureCamera(QThread):
 
     @Slot()
     def pingCoords(self, coords):
-        print(coords)
+        pass
+        #print(coords)
         
     def run(self):
         camera = self.camera

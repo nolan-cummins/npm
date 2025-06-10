@@ -74,7 +74,7 @@ def getVoltageFuncGen(inst):
         volt_read = np.float64(inst.query('VOLT?'))
         return volt_read
     except Exception as e:
-        print(f'Error getting voltage from {inst}: {e}')
+        print(f'Error getting voltage from function generator {inst}: {e}')
         return None
 
 def getVoltage(inst):
