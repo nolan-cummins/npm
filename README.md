@@ -4,12 +4,15 @@ Tool to precisely manipulate and automate NanoPen experiments
 Run "python3 main.py"
 
 **Requirements**:
-- PySide6
+- PySide6 == "6.8.1.1"
 - pyqtgraph
 - numpy
 - pyserial
 - PyPylon
 - cv2
+
+**Drivers**:
+This program requires [NI-Visa](https://www.ni.com/en/support/downloads/drivers/download.ni-visa.html) in order to recognize and connect to the various instruments.
 
 # Guide
 Upon running main.py, two windows will open up: "Nanopen Manipulator" and "Automation." For short, NPM and Autodia. NPM is a PyQtgraph-based XYZ manipulation GUI that plugs directly into any serial-based communication device, such as an Arduino. The "File" button is specifically for Autodia, and will be detailed below. "Serial" automatically searches through all open ports and will display, if recognized, each device name in a list. This allows for easy selection of an Arduino, or some other microcontroller. The serial commands are sent in a standardized string-format. For XYZ positions, it's "PX;Y;Z" with X, Y, and Z as integer positions, and P signialling a position command. The Arduino can process any string, and the program has various other button-based commands, such as "S" for stop, "H" for home, and so on. By default, "Home" is disabled to prevent accidental homing program activations, which can cause significant damage to the NanoPen if not careful. Finally, the "Units" button allows you to switch between stepper motor 'steps' and the actual estimated distance in micrometers.
