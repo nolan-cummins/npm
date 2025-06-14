@@ -5,11 +5,12 @@ Run "python3 main.py"
 
 **Requirements**:
 - PySide6 == "6.8.1.1"
-- pyqtgraph
-- numpy
-- pyserial
-- PyPylon
-- cv2
+- pyqtgraph == "0.13.7"
+- numpy == "2.2.2"
+- pyserial == "3.5"
+- PyPylon == "4.1.0"
+- cv2 (contrib) == "4.11.0.86"
+- PyVISA == "1.14.1"
 
 **Drivers**:
 This program requires [NI-Visa](https://www.ni.com/en/support/downloads/drivers/download.ni-visa.html) in order to recognize and connect to the various instruments.
